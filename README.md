@@ -8,4 +8,4 @@ Group members: Gregory Tan, Tan Zheng Liang, Neo Chuan Zong, Cheok Zi Hin, Dion 
 
 ### **Running the web application**
 
-```streamlit run main.py```
+```Navigate to the project directory and run: python app.py```

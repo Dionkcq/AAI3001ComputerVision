@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GymVision</title>
+
+  <!-- Tailwind (fine for demos; for prod, compile locally) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Fonts (sleek, candy vibe) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body class="bg-zinc-950 text-zinc-100 antialiased">
+  <!-- Custom cursor -->
+  <div id="cursor-dot"></div>
+  <div id="cursor-ring"></div>
+
+  <!-- Animated dumbbell background -->
+  <canvas id="bg-canvas" class="fixed inset-0 -z-10"></canvas>
+  <div class="fixed inset-0 -z-10 bg-gradient-to-b from-zinc-900/40 via-zinc-950 to-black"></div>
+
+  <!-- Nav -->
+  <header class="w-full sticky top-0 z-20 backdrop-blur-md bg-zinc-950/40 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="/" class="group select-none">
+        <span class="flex items-center gap-2">
+          <img src="{{ url_for('static', filename='img/weightlift.png') }}"
+               alt="GymVision logo"
+               class="h-7 w-7 object-contain transition-transform duration-200 ease-out group-hover:scale-105"
+               loading="lazy">
+          <span class="text-2xl font-extrabold tracking-tight transition-transform duration-200 ease-out group-hover:scale-105">
+            GymVision
+          </span>
+        </span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Page content -->
+  {% block content %}{% endblock %}
+
+  <!-- Scripts -->
+  <script src="{{ url_for('static', filename='js/cursor.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/particles.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/scroll-reveal.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+</body>
+</html>
