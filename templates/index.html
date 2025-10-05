@@ -65,7 +65,7 @@
       <form id="upload-form" class="mt-6 space-y-4" enctype="multipart/form-data">
         <label class="block">
           <span class="text-sm text-zinc-300">Choose file</span>
-          <input id="file-input" type="file" name="image" accept=".jpg,.jpeg,.png"
+          <input id="file-input" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"
                  class="mt-2 w-full rounded-lg bg-zinc-800 border border-white/10 p-3 file:mr-4 file:rounded file:border-0 file:bg-white file:text-zinc-900 file:px-4 file:py-2 hover:cursor-pointer" required>
         </label>
 
@@ -84,11 +84,12 @@
     <!-- Results panel -->
     <div class="reveal opacity-0 translate-y-4 bg-zinc-900/50 rounded-2xl border border-white/5 p-6">
       <h3 class="text-2xl font-bold">Analysis Results</h3>
-      <div id="results" class="mt-4 space-y-4">
+      <div id="result" class="mt-4 space-y-4">
         <div class="text-zinc-400 text-sm">Upload an image to see predictions.</div>
       </div>
     </div>
   </div>
 </section>
+
 
 {% endblock %}
