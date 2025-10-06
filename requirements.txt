@@ -1,0 +1,9 @@
+pandas==2.3.2
+flask==3.0.3
+Werkzeug>=3.0.0
+gunicorn==21.2.0
+torch==2.3.1
+torchvision==0.18.1
+pillow
+numpy
+huggingface_hub
