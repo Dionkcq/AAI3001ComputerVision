@@ -2,18 +2,13 @@
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 import os
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
 from PIL import Image
 import io
 import base64
+import torch
 from datetime import datetime
-
-# Configuration
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
-CLASSES = ['benchpress', 'deadlift', 'squat', 'legextension', 'pushup', 'shoulderpress']
-IMG_SIZE = 224
+from huggingface_hub import hf_hub_download
+from model_utils import build_model, get_transforms, CLASSES, IMG_SIZE, ALLOWED_EXTENSIONS
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "uploads")
@@ -21,27 +16,22 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 # Global variables for model
 model = None
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def build_model(model_name, num_classes):
-    """Build model architecture (same as in training)"""
-    if model_name.lower() == 'efficientnetb0':
-        model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
-        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
-    elif model_name.lower() == 'resnet18':
-        model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-        model.fc = nn.Linear(model.fc.in_features, num_classes)
-    else:
-        raise ValueError(f"Unknown model: {model_name}")
-    
-    return model
+device = torch.device("cpu" if os.getenv("HF_SPACE") else ("cuda" if torch.cuda.is_available() else "cpu"))
 
 def load_model():
     """Load the trained model"""
     global model
     try:
-        # Load checkpoint
-        checkpoint_path = "sbd_best.pt"  # Your saved model file
+        # If you set HF_SPACE, pull from HF Hub; else use local file as before.
+        if os.getenv("HF_SPACE"):
+            weights_path = hf_hub_download(
+                repo_id="zihinc/gymvision-resnet18",
+                filename="sbd_best.pt",  
+                repo_type="model"
+            )
+            checkpoint_path = weights_path
+        else:
+            checkpoint_path = "sbd_best.pt"
         checkpoint = torch.load(checkpoint_path, map_location=device)
         
         # Build model architecture
@@ -60,14 +50,6 @@ def load_model():
     except Exception as e:
         print(f"Error loading model: {e}")
         model = None
-
-def get_transforms():
-    """Get image transforms for preprocessing"""
-    return transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE), interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-    ])
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -173,4 +155,4 @@ def analyze():
 load_model()
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=5000)
