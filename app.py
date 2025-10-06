@@ -13,6 +13,8 @@ from model_utils import build_model, get_transforms, CLASSES, IMG_SIZE, ALLOWED_
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = os.environ.get("UPLOAD_DIR", "/data/uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+HF_CACHE_DIR = os.environ.get("HF_CACHE_DIR", "/tmp/hf-cache")
+os.makedirs(HF_CACHE_DIR, exist_ok=True)
 
 # Global variables for model
 model = None
@@ -27,7 +29,8 @@ def load_model():
             weights_path = hf_hub_download(
                 repo_id="zihinc/gymvision-resnet18",
                 filename="sbd_best.pt",  
-                repo_type="model"
+                repo_type="model",
+                cache_dir=HF_CACHE_DIR   
             )
             checkpoint_path = weights_path
         else:

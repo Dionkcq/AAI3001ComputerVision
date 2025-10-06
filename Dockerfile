@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN mkdir -p /data/uploads && chmod -R 777 /data
+ENV HF_CACHE_DIR=/data/hf-cache
 ENV HF_SPACE=1
 ENV PORT=7860
 
