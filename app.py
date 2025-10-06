@@ -11,7 +11,7 @@ from huggingface_hub import hf_hub_download
 from model_utils import build_model, get_transforms, CLASSES, IMG_SIZE, ALLOWED_EXTENSIONS
 
 app = Flask(__name__)
-app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "uploads")
+app.config["UPLOAD_FOLDER"] = os.environ.get("UPLOAD_DIR", "/data/uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 # Global variables for model
