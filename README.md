@@ -1,3 +1,13 @@
+---
+title: GymVision
+emoji: 🚀
+colorFrom: purple
+colorTo: yellow
+sdk: docker
+pinned: false
+---
+
+
 # AAI3001 Computer Vision & Deep Learning Project Group 15
 
 Group members: Gregory Tan, Tan Zheng Liang, Neo Chuan Zong, Cheok Zi Hin, Dion Ko
