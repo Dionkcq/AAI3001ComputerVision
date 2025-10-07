@@ -37,7 +37,7 @@ def load_model():
             print("HF token present?", bool(token)) 
 
             checkpoint_path = hf_hub_download(
-                repo_id="zihinc/gymvision-resnet18",
+                repo_id="zihinc/gymvision-model",
                 filename="sbd_best.pt",  
                 repo_type="model",
                 cache_dir=os.environ["HF_CACHE_DIR"],
@@ -48,14 +48,19 @@ def load_model():
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
         
         # Build model architecture
-        # If checkpoint is ResNet-18, change 'efficientnetb0' to 'resnet18'
-        model = build_model('resnet18', len(CLASSES))
-        
-        # Load state dict
-        if 'model' in checkpoint:
-            model.load_state_dict(checkpoint['model'])
+        state = checkpoint.get("model_state_dict", checkpoint.get("model", checkpoint))
+        keyset = set(state.keys())
+
+        if any(k.startswith("features.") for k in keyset) or "classifier.1.weight" in keyset:
+            arch = "efficientnetb0"
+        elif any(k.startswith("layer1.") for k in keyset) or "fc.weight" in keyset:
+            arch = "resnet18"
         else:
-            model.load_state_dict(checkpoint)
+            arch = "efficientnetb0" 
+
+        model = build_model(arch, len(CLASSES))
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        print("Loaded arch:", arch, "missing:", missing, "unexpected:", unexpected)
         
         model.to(device)
         model.eval()
