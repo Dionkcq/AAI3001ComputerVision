@@ -1,4 +1,10 @@
-# Complete Flask Application for Gym Exercise Image Classifier
+import os
+# Force all HF caches to a writable place
+_cache = "/data/hf-cache" if os.getenv("HF_SPACE") else os.getenv("HF_CACHE_DIR", "/tmp/hf-cache")
+for var in ["HF_HOME", "HUGGINGFACE_HUB_CACHE", "HF_HUB_CACHE", "HF_CACHE_DIR", "XDG_CACHE_HOME"]:
+    os.environ.setdefault(var, _cache)
+os.makedirs(_cache, exist_ok=True)
+
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 import os
@@ -7,14 +13,15 @@ import io
 import base64
 import torch
 from datetime import datetime
-from huggingface_hub import hf_hub_download
 from model_utils import build_model, get_transforms, CLASSES, IMG_SIZE, ALLOWED_EXTENSIONS
+from huggingface_hub import hf_hub_download
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = os.environ.get("UPLOAD_DIR", "/data/uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-HF_CACHE_DIR = os.environ.get("HF_CACHE_DIR", "/tmp/hf-cache")
-os.makedirs(HF_CACHE_DIR, exist_ok=True)
+
+# Make sure the dir exists
+os.makedirs(_cache, exist_ok=True)
 
 # Global variables for model
 model = None
@@ -30,12 +37,12 @@ def load_model():
                 repo_id="zihinc/gymvision-resnet18",
                 filename="sbd_best.pt",  
                 repo_type="model",
-                cache_dir=HF_CACHE_DIR   
+                cache_dir=os.environ["HF_CACHE_DIR"]   
             )
             checkpoint_path = weights_path
         else:
             checkpoint_path = "sbd_best.pt"
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
         
         # Build model architecture
         model = build_model('efficientnetb0', len(CLASSES))
