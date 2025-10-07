@@ -9,8 +9,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p /data/uploads && chmod -R 777 /data
+# create writable dirs for uploads + HF caches
+RUN mkdir -p /data/uploads /data/hf-cache /data/hf-home && chmod -R 777 /data
+
+# make HF Hub use writable locations (not /.cache)
+ENV HF_HOME=/data/hf-home
+ENV HUGGINGFACE_HUB_CACHE=/data/hf-cache
 ENV HF_CACHE_DIR=/data/hf-cache
+
 ENV HF_SPACE=1
 ENV PORT=7860
 
