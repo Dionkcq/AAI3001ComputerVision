@@ -37,7 +37,7 @@ def load_model():
             print("HF token present?", bool(token)) 
 
             checkpoint_path = hf_hub_download(
-                repo_id="zihinc/gymvision-model",
+                repo_id="gym-vision/gymvision-model",
                 filename="sbd_best.pt",  
                 repo_type="model",
                 cache_dir=os.environ["HF_CACHE_DIR"],

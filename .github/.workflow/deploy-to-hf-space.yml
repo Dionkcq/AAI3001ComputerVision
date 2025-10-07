@@ -20,7 +20,7 @@ jobs:
 
       - name: Push to Hugging Face Space
         run: |
-          git remote add hf https://huggingface.co/spaces/zihinc/GymVision.git
+          git remote add hf https://huggingface.co/spaces/gym-vision/gymvision-space.git
           git config user.email "ci@users.noreply.github.com"
           git config user.name "GitHub Actions"
           git -c http.extraheader="AUTHORIZATION: bearer ${{ secrets.HF_TOKEN }}" push -f hf HEAD:main
