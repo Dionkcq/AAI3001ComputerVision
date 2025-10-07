@@ -31,27 +31,36 @@ def load_model():
     """Load the trained model"""
     global model
     try:
-        # If you set HF_SPACE, pull from HF Hub; else use local file as before.
+        # If you set HF_SPACE, pull from HF Hub, else use local file as before.
         if os.getenv("HF_SPACE"):
-            weights_path = hf_hub_download(
-                repo_id="zihinc/gymvision-resnet18",
+            token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
+            print("HF token present?", bool(token)) 
+
+            checkpoint_path = hf_hub_download(
+                repo_id="gym-vision/gymvision-model",
                 filename="sbd_best.pt",  
                 repo_type="model",
-                cache_dir=os.environ["HF_CACHE_DIR"]   
+                cache_dir=os.environ["HF_CACHE_DIR"],
+                token=token   
             )
-            checkpoint_path = weights_path
         else:
             checkpoint_path = "sbd_best.pt"
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
         
         # Build model architecture
-        model = build_model('efficientnetb0', len(CLASSES))
-        
-        # Load state dict
-        if 'model' in checkpoint:
-            model.load_state_dict(checkpoint['model'])
+        state = checkpoint.get("model_state_dict", checkpoint.get("model", checkpoint))
+        keyset = set(state.keys())
+
+        if any(k.startswith("features.") for k in keyset) or "classifier.1.weight" in keyset:
+            arch = "efficientnetb0"
+        elif any(k.startswith("layer1.") for k in keyset) or "fc.weight" in keyset:
+            arch = "resnet18"
         else:
-            model.load_state_dict(checkpoint)
+            arch = "efficientnetb0" 
+
+        model = build_model(arch, len(CLASSES))
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        print("Loaded arch:", arch, "missing:", missing, "unexpected:", unexpected)
         
         model.to(device)
         model.eval()
