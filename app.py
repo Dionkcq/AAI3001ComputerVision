@@ -31,21 +31,25 @@ def load_model():
     """Load the trained model"""
     global model
     try:
-        # If you set HF_SPACE, pull from HF Hub; else use local file as before.
+        # If you set HF_SPACE, pull from HF Hub, else use local file as before.
         if os.getenv("HF_SPACE"):
-            weights_path = hf_hub_download(
+            token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
+            print("HF token present?", bool(token)) 
+
+            checkpoint_path = hf_hub_download(
                 repo_id="zihinc/gymvision-resnet18",
                 filename="sbd_best.pt",  
                 repo_type="model",
-                cache_dir=os.environ["HF_CACHE_DIR"]   
+                cache_dir=os.environ["HF_CACHE_DIR"],
+                token=token   
             )
-            checkpoint_path = weights_path
         else:
             checkpoint_path = "sbd_best.pt"
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
         
         # Build model architecture
-        model = build_model('efficientnetb0', len(CLASSES))
+        # If checkpoint is ResNet-18, change 'efficientnetb0' to 'resnet18'
+        model = build_model('resnet18', len(CLASSES))
         
         # Load state dict
         if 'model' in checkpoint:
