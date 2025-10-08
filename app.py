@@ -5,7 +5,7 @@ for var in ["HF_HOME", "HUGGINGFACE_HUB_CACHE", "HF_HUB_CACHE", "HF_CACHE_DIR", 
     os.environ.setdefault(var, _cache)
 os.makedirs(_cache, exist_ok=True)
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 import os
 from PIL import Image
@@ -115,6 +115,10 @@ def predict_image(image_bytes):
 def index():
     return render_template("index.html")
 
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
     """Main prediction endpoint"""
@@ -154,12 +158,13 @@ def analyze():
             return jsonify({
                 "ok": True,
                 "filename": filename,
+                "image_url": url_for("uploaded_file", filename=filename),  # << add this
                 "prediction": {
-                    "label": result["prediction"], 
+                    "label": result["prediction"],
                     "confidence": result["confidence"]
                 },
                 "form": {
-                    "ok": result["confidence"] > 0.7, 
+                    "ok": result["confidence"] > 0.7,
                     "note": "Good form detected!" if result["confidence"] > 0.7 else "Check your form."
                 },
                 "tip": tips.get(result["prediction"], "Keep practicing!"),
