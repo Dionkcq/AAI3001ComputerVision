@@ -207,7 +207,15 @@ marimo/_lsp/
 __marimo__/
 
 # ---- Project data ----
-Dataset/**
+Dataset (2)/**
+Annotated_v1/**
+Annotated_v2/**
+Annotated_v3/**
+output/**
+runs/**
+Split_Dataset/**
+test_images/**
+version1/**
 
 # ---- Model artifacts ----
 *.pt
