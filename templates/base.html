@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GymVision</title>
+  <title>GymVision - Exercise Detection</title>
 
   <!-- Tailwind (fine for demos; for prod, compile locally) -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -48,7 +48,7 @@
   <script src="{{ url_for('static', filename='js/cursor.js') }}"></script>
   <script src="{{ url_for('static', filename='js/particles.js') }}"></script>
   <script src="{{ url_for('static', filename='js/scroll-reveal.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/predict.js') }}"></script>
+  <!-- REPLACED: predict.js and upload.js with detection.js -->
+  <script src="{{ url_for('static', filename='js/detection.js') }}"></script>
 </body>
 </html>
