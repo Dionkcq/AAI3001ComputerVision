@@ -38,16 +38,16 @@ CLASSES = [
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 # OPTIMIZED Performance settings for CPU
-SKIP_FRAMES = 4  # Process every 2nd frame
-TARGET_FPS = 15  # Target FPS for video processing
+SKIP_FRAMES = 2  # Process every 2nd frame
+TARGET_FPS = 20  # Target FPS for video processing
 INFERENCE_SIZE = 416  # Optimal balance for YOLOv5
-JPEG_QUALITY = 75  # Slightly higher quality
-CONF_THRESHOLD = 0.25  # Confidence threshold
-IOU_THRESHOLD = 0.5  # NMS IOU threshold
+JPEG_QUALITY = 80  # Slightly higher quality
+CONF_THRESHOLD = 0.4  # Confidence threshold
+IOU_THRESHOLD = 0.45  # NMS IOU threshold
 
 # Global variables
 model = None
-device = torch.device("cpu")  # Force CPU for consistency
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 frame_times = deque(maxlen=30)
 last_frame_cache = None  # Cache for frame skipping
 
@@ -78,139 +78,147 @@ def load_model():
     print("STARTING MODEL LOAD (CPU OPTIMIZED)")
     print("=" * 60)
     
+    # CRITICAL: Set environment variables to prevent training
+    os.environ['YOLO_VERBOSE'] = 'False'
+    os.environ['ULTRALYTICS_AUTOINSTALL'] = 'False'
+    
     try:
+        # Where to load the checkpoint from
         if os.getenv("HF_SPACE"):
             token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
             checkpoint_path = hf_hub_download(
                 repo_id="gym-vision/gymvision-model",
-                filename="best_v4.pt",
+                filename="yolo_best.pt",
                 repo_type="model",
                 cache_dir=os.environ["HF_CACHE_DIR"],
                 token=token   
             )
         else:
-            checkpoint_path = "best_v4.pt"
+            checkpoint_path = "yolo_best.pt"
             print(f"Local mode - Model at: {os.path.abspath(checkpoint_path)}")
             if not os.path.exists(checkpoint_path):
                 raise FileNotFoundError(f"Model not found: {checkpoint_path}")
         
         print(f"Device: {device}")
         
-        # METHOD 1: Try ultralytics YOLO first (most compatible)
-        print("\n[1/3] Trying ultralytics YOLO...")
+        # ============ METHOD 1: ultralytics YOLO (preferred) ============
+        print("\n[1/2] Loading YOLO model with ultralytics...")
+        loaded = False
         try:
             from ultralytics import YOLO
-            model = YOLO(checkpoint_path, task='detect')
-            model.to('cpu')
-            
-            # Force inference mode
-            if hasattr(model, 'model'):
-                model.model.eval()
-                for param in model.model.parameters():
-                    param.requires_grad = False
-            
-            # Configure
-            if hasattr(model, 'overrides'):
-                model.overrides['conf'] = CONF_THRESHOLD
-                model.overrides['iou'] = IOU_THRESHOLD
-                model.overrides['max_det'] = 10
-                model.overrides['verbose'] = False
-            
-            print("✓ Loaded with ultralytics YOLO")
-            loaded = True
-            
-        except Exception as e1:
-            print(f"✗ ultralytics failed: {e1}")
-            loaded = False
-            
-            # METHOD 2: Try torch.hub with cache clearing
-            print("\n[2/3] Trying torch.hub (with cache clear)...")
+
+            # Some versions accept task=, some don’t – be defensive
             try:
-                # Clear cache to fix grid attribute error
+                model_ = YOLO(checkpoint_path, task="detect")
+            except TypeError:
+                model_ = YOLO(checkpoint_path)
+
+            model_.to(device)
+
+            # Force eval mode, no gradients
+            if hasattr(model_, "model"):
+                model_.model.eval()
+                model_.model.requires_grad_(False)
+                for p in model_.model.parameters():
+                    p.requires_grad = False
+
+            # Disable trainer if present
+            if hasattr(model_, "trainer"):
+                model_.trainer = None
+
+            # Configure inference defaults via overrides if available
+            if hasattr(model_, "overrides"):
+                model_.overrides.update({
+                    "mode": "predict",
+                    "task": "detect",
+                    "conf": CONF_THRESHOLD,
+                    "iou": IOU_THRESHOLD,
+                    "max_det": 10,
+                    "save": False,
+                    "save_txt": False,
+                    "save_conf": False,
+                    "save_crop": False,
+                    "show": False,
+                    "plots": False,
+                    "half": False,
+                    "device": device.type,
+                    "imgsz": INFERENCE_SIZE,
+                })
+
+            # Optional FP16 on GPU
+            if device.type == "cuda" and hasattr(model_, "model"):
+                try:
+                    model_.model.half()
+                    print("  ✓ Enabled FP16 (half precision) for GPU")
+                except Exception:
+                    print("  ℹ FP16 not available, using FP32")
+
+            model = model_
+            loaded = True
+            print("✓ Loaded YOLO model with ultralytics (inference mode locked)")
+        except Exception as e1:
+            print(f"✗ ultralytics YOLO loading failed: {e1}")
+            loaded = False
+
+            # ============ METHOD 2: torch.hub YOLOv5 fallback ============
+            print("\n[2/2] Trying torch.hub YOLOv5 compatibility mode...")
+            try:
                 clear_torch_hub_cache()
-                
-                model = torch.hub.load('ultralytics/yolov5', 'custom', 
-                                      path=checkpoint_path, 
-                                      force_reload=True,
-                                      device='cpu',
-                                      trust_repo=True,
-                                      skip_validation=True)
-                
-                print("✓ Loaded with torch.hub")
+                model_ = torch.hub.load(
+                    "ultralytics/yolov5",
+                    "custom",
+                    path=checkpoint_path,
+                    force_reload=True,
+                    device=device.type,
+                    trust_repo=True,
+                    skip_validation=True,
+                )
+                print("✓ Loaded with torch.hub (YOLOv5 compatibility)")
+                model = model_
                 loaded = True
-                
             except Exception as e2:
                 print(f"✗ torch.hub failed: {e2}")
                 loaded = False
-                
-                # METHOD 3: Direct checkpoint loading
-                print("\n[3/3] Trying direct checkpoint loading...")
-                try:
-                    checkpoint = torch.load(checkpoint_path, map_location='cpu')
-                    
-                    # Check checkpoint structure
-                    if isinstance(checkpoint, dict):
-                        if 'model' in checkpoint:
-                            model = checkpoint['model']
-                        elif 'state_dict' in checkpoint:
-                            # Need to reconstruct model architecture
-                            print("Checkpoint contains state_dict, need model architecture...")
-                            raise ValueError("Cannot load from state_dict without architecture")
-                        else:
-                            model = checkpoint
-                    else:
-                        model = checkpoint
-                    
-                    model.to('cpu')
-                    model.eval()
-                    
-                    # Disable gradients
-                    for param in model.parameters():
-                        param.requires_grad = False
-                    
-                    print("✓ Loaded from checkpoint directly")
-                    loaded = True
-                    
-                except Exception as e3:
-                    print(f"✗ Direct loading failed: {e3}")
-                    loaded = False
-        
+
         if not loaded or model is None:
             raise RuntimeError("All loading methods failed. Please check your model file.")
-        
-        # CRITICAL CPU OPTIMIZATIONS
-        model.eval()
-        
-        # Configure inference parameters based on model type
+
+        # Extra safety: set thresholds on YOLOv5-style models
         try:
-            # For ultralytics YOLO
-            if hasattr(model, 'overrides'):
+            if hasattr(model, "overrides"):
                 model.overrides.update({
-                    'conf': CONF_THRESHOLD,
-                    'iou': IOU_THRESHOLD,
-                    'max_det': 10,
-                    'verbose': False,
-                    'half': False
+                    "conf": CONF_THRESHOLD,
+                    "iou": IOU_THRESHOLD,
+                    "max_det": 10,
+                    "save": False,
+                    "save_txt": False,
+                    "save_conf": False,
+                    "save_crop": False,
+                    "show": False,
+                    "plots": False,
+                    "half": False,
                 })
-            # For torch.hub YOLOv5
-            elif hasattr(model, 'conf'):
+            elif hasattr(model, "conf"):
                 model.conf = CONF_THRESHOLD
                 model.iou = IOU_THRESHOLD
                 model.max_det = 10
         except Exception as e:
             print(f"Warning: Could not set inference parameters: {e}")
         
-        # Warmup inference (important for CPU!)
+        # ---- Warmup inference (simple, version-safe) ----
         print("\nWarming up model (3 iterations)...")
         dummy_img = np.random.randint(0, 255, (INFERENCE_SIZE, INFERENCE_SIZE, 3), dtype=np.uint8)
-        
         for i in range(3):
             with torch.no_grad():
                 try:
-                    if hasattr(model, 'predict'):  # ultralytics
-                        _ = model.predict(dummy_img, imgsz=INFERENCE_SIZE, verbose=False)
-                    else:  # torch.hub
-                        _ = model(dummy_img, size=INFERENCE_SIZE)
+                    if hasattr(model, "predict"):
+                        # Try with source= first, then positional
+                        try:
+                            _ = model.predict(source=dummy_img)
+                        except TypeError:
+                            _ = model.predict(dummy_img)
+                    else:
+                        _ = model(dummy_img)
                     print(f"  Warmup {i+1}/3 complete")
                 except Exception as e:
                     print(f"  Warmup {i+1}/3 warning: {e}")
@@ -224,7 +232,7 @@ def load_model():
         print("=" * 60 + "\n")
         
         return True
-        
+    
     except Exception as e:
         print("\n" + "=" * 60)
         print("MODEL LOADING FAILED")
@@ -255,8 +263,8 @@ def draw_detections_fast(image, detections):
     
     # Pre-calculate text properties
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1
-    thickness = 4
+    font_scale = 0.6
+    thickness = 2
     
     for det in detections:
         x1, y1, x2, y2 = det['bbox']
@@ -306,87 +314,93 @@ def draw_detections_fast(image, detections):
 
 @torch.no_grad()
 def detect_objects_fast(image_array, verbose=False):
-    """Highly optimized object detection for CPU"""
+    """Highly optimized object detection for CPU/GPU, version-safe."""
     if model is None:
         return []
     
     try:
         start_time = time.time()
-        
         detections = []
-        
-        # Detect based on model type
-        if hasattr(model, 'predict'):  # ultralytics YOLO
-            results = model.predict(
-                image_array,
-                imgsz=INFERENCE_SIZE,
-                conf=CONF_THRESHOLD,
-                iou=IOU_THRESHOLD,
-                max_det=10,
-                augment=False,
-                verbose=False,
-                half=False
-            )
-            
-            if results and len(results) > 0:
+
+        # ---- Ultralytics-style models (YOLOv8/YOLOv5) ----
+        if hasattr(model, "predict"):
+            # Call predict with as few kwargs as possible; config is in overrides
+            try:
+                results = model.predict(source=image_array)
+            except TypeError:
+                # Some versions use positional
+                try:
+                    results = model.predict(image_array)
+                except TypeError:
+                    # Fallback: calling the model directly
+                    results = model(image_array)
+
+            # Ultralytics v8 usually returns a list of Results
+            if results is not None and hasattr(results, "__len__") and len(results) > 0:
                 result = results[0]
-                
-                if hasattr(result, 'boxes') and result.boxes is not None:
+                if hasattr(result, "boxes") and result.boxes is not None:
                     boxes = result.boxes
-                    
                     for box in boxes:
-                        # Get coordinates
                         xyxy = box.xyxy[0].cpu().numpy()
                         x1, y1, x2, y2 = map(int, xyxy)
-                        
-                        # Get confidence and class
                         conf = float(box.conf[0].cpu().numpy())
                         cls_id = int(box.cls[0].cpu().numpy())
-                        
-                        # Get label
-                        if hasattr(model, 'names'):
+
+                        # Manual confidence filter to decouple from API
+                        if conf < CONF_THRESHOLD:
+                            continue
+
+                        if hasattr(model, "names"):
                             label = model.names[cls_id] if cls_id < len(model.names) else f"class_{cls_id}"
                         else:
                             label = CLASSES[cls_id] if cls_id < len(CLASSES) else f"class_{cls_id}"
-                        
+
                         detections.append({
-                            'bbox': [x1, y1, x2, y2],
-                            'label': label,
-                            'confidence': conf
+                            "bbox": [x1, y1, x2, y2],
+                            "label": label,
+                            "confidence": conf,
                         })
-        
-        else:  # torch.hub YOLOv5
-            results = model(image_array, size=INFERENCE_SIZE, augment=False)
-            
-            if hasattr(results, '__len__') and len(results) > 0:
+
+        # ---- torch.hub YOLOv5 fallback ----
+        else:
+            try:
+                try:
+                    results = model(image_array, size=INFERENCE_SIZE, augment=False)
+                except TypeError:
+                    results = model(image_array)
+            except Exception as e:
+                print(f"YOLOv5 inference error: {e}")
+                results = None
+
+            if results is not None and hasattr(results, "__len__") and len(results) > 0:
                 r = results[0]
-                
-                if hasattr(r, 'xyxy'):
+                if hasattr(r, "xyxy"):
                     pred = r.xyxy[0].cpu().numpy()
-                    
                     for det in pred:
                         x1, y1, x2, y2, conf, cls_id = det
+                        conf = float(conf)
                         cls_id = int(cls_id)
-                        
-                        # Get label
-                        if hasattr(model, 'names'):
+
+                        if conf < CONF_THRESHOLD:
+                            continue
+
+                        if hasattr(model, "names"):
                             label = model.names[cls_id] if cls_id < len(model.names) else f"class_{cls_id}"
                         else:
                             label = CLASSES[cls_id] if cls_id < len(CLASSES) else f"class_{cls_id}"
-                        
+
                         detections.append({
-                            'bbox': [int(x1), int(y1), int(x2), int(y2)],
-                            'label': label,
-                            'confidence': float(conf)
+                            "bbox": [int(x1), int(y1), int(x2), int(y2)],
+                            "label": label,
+                            "confidence": conf,
                         })
-        
-        inference_time = (time.time() - start_time) * 1000
-        
+
+        inference_time = (time.time() - start_time) * 1000.0
         if verbose:
-            print(f"Inference: {inference_time:.1f}ms | Detections: {len(detections)}")
+            print(f"Inference: {inference_time:.1f}ms | Detections: {len(detections)} | Device: {device.type}")
         
         return detections
-        
+
     except Exception as e:
         print(f"Detection error: {e}")
         import traceback
@@ -636,22 +650,15 @@ def video_feed(video_id):
 print("\n" + "="*60)
 print("FLASK APP STARTING (CPU OPTIMIZED)")
 print("="*60)
-model_loaded = load_model()
-
-if model_loaded:
-    print("\n✓ App ready for CPU inference")
-    print(f"Performance settings:")
-    print(f"  - Inference size: {INFERENCE_SIZE}x{INFERENCE_SIZE}")
-    print(f"  - Skip frames: {SKIP_FRAMES}")
-    print(f"  - Target FPS: {TARGET_FPS}")
-    print(f"  - JPEG quality: {JPEG_QUALITY}")
-    print(f"  - Confidence: {CONF_THRESHOLD}")
-    print(f"  - Device: {device}")
-else:
-    print("\n✗ Model failed to load - check errors above")
-
-print("="*60 + "\n")
-
 if __name__ == "__main__":
-    # Use threading for better concurrency
-    app.run(debug=False, host="0.0.0.0", port=5000, threaded=True)
+    model_loaded = load_model()
+    if not model_loaded:
+        print("✗ Model failed to load - check errors above")
+        raise SystemExit(1)
+
+    # Run Flask on local
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 7860)),
+        debug=False
+    )
