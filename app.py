@@ -88,13 +88,13 @@ def load_model():
             token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
             checkpoint_path = hf_hub_download(
                 repo_id="gym-vision/gymvision-model",
-                filename="yolo_best.pt",
+                filename="best_v4.pt",
                 repo_type="model",
                 cache_dir=os.environ["HF_CACHE_DIR"],
                 token=token   
             )
         else:
-            checkpoint_path = "yolo_best.pt"
+            checkpoint_path = "best_v4.pt"
             print(f"Local mode - Model at: {os.path.abspath(checkpoint_path)}")
             if not os.path.exists(checkpoint_path):
                 raise FileNotFoundError(f"Model not found: {checkpoint_path}")
