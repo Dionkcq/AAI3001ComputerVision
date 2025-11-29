@@ -126,15 +126,15 @@ These analyses are documented in `ObjectDetection.ipynb` and `predict.ipynb`.
 
 You can try the model directly in the browser on Hugging Face:
 
-**GymVision Space:** https://huggingface.co/spaces/<your-username>/<your-space-name>
+**GymVision Space:** https://huggingface.co/spaces/gym-vision/Object-Detection-Space
 
 **How to use:**
 
 1. Open the Space in your browser.
-2. Upload a test image (or select one of the provided sample gym images).
+2. Upload a test video or image (or select one of the provided sample gym images).
 3. Click **Detect**.
 4. The app will return:
-   - the image with bounding boxes, and
+   - the image/video with bounding boxes, and
    - the predicted exercise class + confidence score.
 
 ---
